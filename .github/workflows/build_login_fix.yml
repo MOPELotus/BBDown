@@ -1,0 +1,33 @@
+name: Build Login Fix
+
+on:
+  push:
+  workflow_dispatch:
+
+env:
+  DOTNET_SDK_VERSION: "9.0.306"
+
+jobs:
+  build-win-x64:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up dotnet
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+
+      - name: Publish win-x64
+        shell: pwsh
+        run: dotnet publish BBDown -r win-x64 -c Release -o artifact
+
+      - name: Package
+        shell: pwsh
+        run: Compress-Archive -Path artifact/BBDown.exe -DestinationPath BBDown_win-x64_login-fix.zip -Force
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BBDown_win-x64_login-fix
+          path: BBDown_win-x64_login-fix.zip
