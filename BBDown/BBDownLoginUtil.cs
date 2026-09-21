@@ -1,6 +1,8 @@
 ﻿using QRCoder;
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using static BBDown.BBDownUtil;
 using static BBDown.Core.Logger;
@@ -13,10 +15,96 @@ namespace BBDown;
 
 internal static class BBDownLoginUtil
 {
-    public static async Task<string> GetLoginStatusAsync(string qrcodeKey)
+    private static readonly string[] WebLoginCookieNames =
+    [
+        "DedeUserID",
+        "DedeUserID__ckMd5",
+        "SESSDATA",
+        "bili_jct",
+        "sid"
+    ];
+
+    public static async Task<(string Body, string[] SetCookieHeaders)> GetLoginStatusAsync(string qrcodeKey)
     {
         string queryUrl = $"https://passport.bilibili.com/x/passport-login/web/qrcode/poll?qrcode_key={qrcodeKey}&source=main-fe-header";
-        return await HTTPUtil.GetWebSourceAsync(queryUrl);
+        using var webRequest = new HttpRequestMessage(HttpMethod.Get, queryUrl);
+        webRequest.Headers.TryAddWithoutValidation("User-Agent", HTTPUtil.UserAgent);
+        webRequest.Headers.TryAddWithoutValidation("Accept-Encoding", "gzip, deflate");
+        webRequest.Headers.CacheControl = new() { NoCache = true };
+        webRequest.Headers.Connection.Clear();
+
+        using var webResponse = (await HTTPUtil.AppHttpClient.SendAsync(
+            webRequest,
+            HttpCompletionOption.ResponseHeadersRead)).EnsureSuccessStatusCode();
+
+        string body = await webResponse.Content.ReadAsStringAsync();
+        string[] setCookieHeaders = webResponse.Headers.TryGetValues("Set-Cookie", out var values)
+            ? values.ToArray()
+            : [];
+
+        return (body, setCookieHeaders);
+    }
+
+    private static Dictionary<string, string> GetWebLoginCookies(
+        IEnumerable<string> setCookieHeaders,
+        string confirmationUrl)
+    {
+        var cookies = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (string header in setCookieHeaders)
+        {
+            string pair = header.Split(';', 2)[0];
+            int separatorIndex = pair.IndexOf('=');
+            if (separatorIndex <= 0)
+                continue;
+
+            string name = pair[..separatorIndex].Trim();
+            string value = pair[(separatorIndex + 1)..].Trim();
+
+            if (WebLoginCookieNames.Contains(name, StringComparer.Ordinal) && !string.IsNullOrEmpty(value))
+                cookies[name] = value;
+        }
+
+        // 兼容旧版行为：部分响应会把 Cookie 同时放在 data.url 查询参数中。
+        if (!string.IsNullOrWhiteSpace(confirmationUrl))
+        {
+            foreach (string name in WebLoginCookieNames)
+            {
+                if (cookies.ContainsKey(name))
+                    continue;
+
+                string value = GetQueryString(name, confirmationUrl);
+                if (!string.IsNullOrEmpty(value))
+                    cookies[name] = value;
+            }
+        }
+
+        return cookies;
+    }
+
+    private static string BuildWebLoginCookie(Dictionary<string, string> cookies)
+    {
+        string[] requiredCookies =
+        [
+            "DedeUserID",
+            "DedeUserID__ckMd5",
+            "SESSDATA",
+            "bili_jct"
+        ];
+
+        string[] missingCookies = requiredCookies
+            .Where(name => !cookies.TryGetValue(name, out string? value) || string.IsNullOrEmpty(value))
+            .ToArray();
+
+        if (missingCookies.Length > 0)
+            throw new InvalidOperationException(
+                $"登录成功但未获取到完整 Cookie，缺少: {string.Join(", ", missingCookies)}");
+
+        return string.Join(
+            ";",
+            WebLoginCookieNames
+                .Where(cookies.ContainsKey)
+                .Select(name => $"{name}={cookies[name].Replace(",", "%2C")}"));
     }
 
     public static async Task LoginWEB()
@@ -42,8 +130,11 @@ internal static class BBDownLoginUtil
             while (true)
             {
                 await Task.Delay(1000);
-                string w = await GetLoginStatusAsync(qrcodeKey);
-                int code = JsonDocument.Parse(w).RootElement.GetProperty("data").GetProperty("code").GetInt32();
+                var loginStatus = await GetLoginStatusAsync(qrcodeKey);
+                using var loginJson = JsonDocument.Parse(loginStatus.Body);
+                var data = loginJson.RootElement.GetProperty("data");
+                int code = data.GetProperty("code").GetInt32();
+
                 if (code == 86038)
                 {
                     LogColor("二维码已过期, 请重新执行登录指令.");
@@ -63,10 +154,15 @@ internal static class BBDownLoginUtil
                 }
                 else
                 {
-                    string cc = JsonDocument.Parse(w).RootElement.GetProperty("data").GetProperty("url").ToString();
-                    Log("登录成功: SESSDATA=" + GetQueryString("SESSDATA", cc));
-                    //导出cookie, 转义英文逗号 否则部分场景会出问题
-                    await File.WriteAllTextAsync(Path.Combine(Program.APP_DIR, "BBDown.data"), cc[(cc.IndexOf('?') + 1)..].Replace("&", ";").Replace(",", "%2C"));
+                    string confirmationUrl = data.TryGetProperty("url", out var urlElement)
+                        ? urlElement.ToString()
+                        : string.Empty;
+                    Dictionary<string, string> cookies =
+                        GetWebLoginCookies(loginStatus.SetCookieHeaders, confirmationUrl);
+                    string cookie = BuildWebLoginCookie(cookies);
+
+                    Log("登录成功: SESSDATA=" + cookies["SESSDATA"]);
+                    await File.WriteAllTextAsync(Path.Combine(Program.APP_DIR, "BBDown.data"), cookie);
                     File.Delete("qrcode.png");
                     break;
                 }
