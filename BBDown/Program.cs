@@ -226,6 +226,8 @@ partial class Program
     {
         // 加载认证信息
         LoadCredentials(myOption);
+        if (string.IsNullOrEmpty(myOption.Cookie) && !myOption.UseTvApi && !myOption.UseIntlApi)
+            await BBDownLoginUtil.RefreshSavedLoginAsync();
 
         // 检测是否登录了账号
         if (myOption is { UseIntlApi: false, UseTvApi: false } && Config.AREA == "")
@@ -324,6 +326,11 @@ partial class Program
     public static async Task DownloadPagesAsync(MyOption myOption, VInfo vInfo, Dictionary<string, byte> encodingPriority, Dictionary<string, int> dfnPriority,
         string? firstEncoding, bool downloadDanmaku, BBDownDanmakuFormat[] downloadDanmakuFormats, string input, string savePathFormat, string lang, string aidOri, int delay, string apiType, DownloadTask? relatedTask = null)
     {
+        if (vInfo.ExportedVideoListPath != null)
+        {
+            relatedTask?.SavePaths.Add(vInfo.ExportedVideoListPath);
+            return;
+        }
         List<Page> pagesInfo = vInfo.PagesInfo;
         bool bangumi = vInfo.IsBangumi;
         bool cheese = vInfo.IsCheese;

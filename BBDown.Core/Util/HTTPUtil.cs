@@ -10,6 +10,7 @@ public static class HTTPUtil
     public static readonly HttpClient AppHttpClient = new(new HttpClientHandler
     {
         AllowAutoRedirect = true,
+        UseCookies = false,
         AutomaticDecompression = DecompressionMethods.All,
         ServerCertificateCustomValidationCallback = (sender, cert, chain, sslPolicyErrors) => true
     })
@@ -17,38 +18,30 @@ public static class HTTPUtil
         Timeout = TimeSpan.FromMinutes(2)
     };
 
-    private static readonly Random random = new Random();
-    private static readonly string[] platforms = { "Windows NT 10.0; Win64", "Macintosh; Intel Mac OS X 10_15", "X11; Linux x86_64" };
+    public static string UserAgent { get; set; } = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
-    private static string RandomVersion(int min, int max)
+    public static async Task<string> GetSignedWebSourceAsync(string endpoint, string query, string? referer = null)
     {
-        double version = random.NextDouble() * (max - min) + min;
-        return version.ToString("F3");
+        await BilibiliWebUtil.EnsureInitializedAsync();
+        return await GetWebSourceAsync(endpoint + "?" + Parser.WbiSign(query), referer: referer);
     }
 
-    private static string GetRandomUserAgent()
-    {
-        string[] browsers = { $"AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{RandomVersion(80, 110)} Safari/537.36", $"Gecko/20100101 Firefox/{RandomVersion(80, 110)}" };
-        return $"Mozilla/5.0 ({platforms[random.Next(platforms.Length)]}) {browsers[random.Next(browsers.Length)]}";
-    }
-
-    public static string UserAgent { get; set; } = GetRandomUserAgent();
-
-    public static async Task<string> GetWebSourceAsync(string url, string? userAgent = null)
+    public static async Task<string> GetWebSourceAsync(string url, string? userAgent = null, string? referer = null)
     {
         using var webRequest = new HttpRequestMessage(HttpMethod.Get, url);
         webRequest.Headers.TryAddWithoutValidation("User-Agent", userAgent ?? UserAgent);
         webRequest.Headers.TryAddWithoutValidation("Accept-Encoding", "gzip, deflate");
-        webRequest.Headers.TryAddWithoutValidation("Cookie", (url.Contains("/ep") || url.Contains("/ss")) ? Config.COOKIE + ";CURRENT_FNVAL=4048;" : Config.COOKIE);
-        if (url.Contains("api.bilibili.com"))
-            webRequest.Headers.TryAddWithoutValidation("Referer", "https://www.bilibili.com/");
+        string cookie = new Uri(url).Host == "api.bilibili.com" ? BilibiliWebUtil.CookieHeader(Config.COOKIE) : Config.COOKIE;
+        webRequest.Headers.TryAddWithoutValidation("Cookie", (url.Contains("/ep") || url.Contains("/ss")) ? cookie + ";CURRENT_FNVAL=4048;" : cookie);
+        if (new Uri(url).Host == "api.bilibili.com")
+            webRequest.Headers.TryAddWithoutValidation("Referer", referer ?? "https://www.bilibili.com/");
         if (url.Contains("api.bilibili.tv"))
             webRequest.Headers.TryAddWithoutValidation("sec-ch-ua", "\"Google Chrome\";v=\"131\", \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"");
         webRequest.Headers.CacheControl = CacheControlHeaderValue.Parse("no-cache");
         webRequest.Headers.Connection.Clear();
 
-        LogDebug("获取网页内容: Url: {0}, Headers: {1}", url, webRequest.Headers);
-        var webResponse = (await AppHttpClient.SendAsync(webRequest, HttpCompletionOption.ResponseHeadersRead)).EnsureSuccessStatusCode();
+        LogDebug("获取网页内容: Url: {0}", url);
+        using var webResponse = (await AppHttpClient.SendAsync(webRequest, HttpCompletionOption.ResponseHeadersRead)).EnsureSuccessStatusCode();
 
         string htmlCode = await webResponse.Content.ReadAsStringAsync();
         LogDebug("Response: {0}", htmlCode);

@@ -330,8 +330,7 @@ public static partial class SubUtil
         try
         {
             List<Subtitle> subtitles = new();
-            string api = $"https://api.bilibili.com/x/player/wbi/v2?cid={cid}&aid={aid}";
-            string json = await GetWebSourceAsync(api);
+            string json = await GetSignedWebSourceAsync("https://api.bilibili.com/x/player/wbi/v2", $"cid={cid}&aid={aid}");
             using var infoJson = JsonDocument.Parse(json);
             var subs = infoJson.RootElement.GetProperty("data").GetProperty("subtitle").GetProperty("subtitles").EnumerateArray();
             foreach (var sub in subs)
@@ -420,9 +419,11 @@ public static partial class SubUtil
             }
             else
             {
-                subtitles = await GetSubtitlesFromApi2Async(aid, cid, epId, index)
-                            ?? await GetSubtitlesFromApi1Async(aid, cid, epId, index)
-                            ?? await GetSubtitlesFromApi3Async(aid, cid, epId, index);
+                subtitles = await GetSubtitlesFromApi2Async(aid, cid, epId, index);
+                if (subtitles == null || subtitles.Count == 0)
+                    subtitles = await GetSubtitlesFromApi1Async(aid, cid, epId, index);
+                if (subtitles == null || subtitles.Count == 0)
+                    subtitles = await GetSubtitlesFromApi3Async(aid, cid, epId, index);
             }
 
         }

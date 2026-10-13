@@ -14,12 +14,9 @@ public class SpaceVideoFetcher : IFetcher
         string userInfoApi = $"https://api.live.bilibili.com/live_user/v1/Master/info?uid={id}";
         string userName = GetValidFileName(JsonDocument.Parse(await GetWebSourceAsync(userInfoApi)).RootElement.GetProperty("data").GetProperty("info").GetProperty("uname").ToString(), ".", true);
         List<string> urls = new();
-        int pageSize = 50;
+        int pageSize = 30;
         int pageNumber = 1;
-        var api = Parser.WbiSign($"mid={id}&order=pubdate&pn={pageNumber}&ps={pageSize}&tid=0&wts={DateTimeOffset.Now.ToUnixTimeSeconds().ToString()}");
-        api = $"https://api.bilibili.com/x/space/wbi/arc/search?{api}";
-        string json = await GetWebSourceAsync(api);
-        var infoJson = JsonDocument.Parse(json);
+        using var infoJson = await GetPageAsync(pageNumber, pageSize, id);
         var pages = infoJson.RootElement.GetProperty("data").GetProperty("list").GetProperty("vlist").EnumerateArray();
         foreach (var page in pages)
         {
@@ -32,29 +29,59 @@ public class SpaceVideoFetcher : IFetcher
             pageNumber++;
             urls.AddRange(await GetVideosByPageAsync(pageNumber, pageSize, id));
         }
-        await File.WriteAllTextAsync($"{userName}的投稿视频.txt", string.Join(Environment.NewLine, urls));
-        Log("目前下载器不支持下载用户的全部投稿视频，不过程序已经获取到了该用户的全部投稿视频地址，你可以自行使用批处理脚本等手段调用本程序进行批量下载。如在Windows系统你可以使用如下代码：");
-        Console.WriteLine();
-        Console.WriteLine(@"@echo Off
-For /F %%a in (urls.txt) Do (BBDown.exe ""%%a"")
-pause");
-        Console.WriteLine();
-        throw new Exception("暂不支持该功能");
+        if (urls.Count != totalCount || urls.Distinct(StringComparer.Ordinal).Count() != urls.Count)
+            throw new InvalidOperationException("投稿列表分页数量发生变化，请稍后重试；未导出不完整列表");
+        string path = Path.GetFullPath($"{userName}的投稿视频.txt");
+        string temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            await File.WriteAllTextAsync(temporary, string.Join(Environment.NewLine, urls));
+            File.Move(temporary, path, true);
+        }
+        finally { if (File.Exists(temporary)) File.Delete(temporary); }
+        Log($"已导出 {urls.Count} 条投稿地址: {path}，可逐行调用 BBDown 下载");
+        return new VInfo
+        {
+            Title = userName + "的投稿视频", Desc = "个人空间投稿地址列表", Pic = "", PubTime = 0,
+            PagesInfo = [], ExportedVideoListPath = path
+        };
     }
 
     static async Task<List<string>> GetVideosByPageAsync(int pageNumber, int pageSize, string mid)
     {
         List<string> urls = new();
-        var api = Parser.WbiSign($"mid={mid}&order=pubdate&pn={pageNumber}&ps={pageSize}&tid=0&wts={DateTimeOffset.Now.ToUnixTimeSeconds().ToString()}");
-        api = $"https://api.bilibili.com/x/space/wbi/arc/search?{api}";
-        string json = await GetWebSourceAsync(api);
-        var infoJson = JsonDocument.Parse(json);
+        using var infoJson = await GetPageAsync(pageNumber, pageSize, mid);
         var pages = infoJson.RootElement.GetProperty("data").GetProperty("list").GetProperty("vlist").EnumerateArray();
         foreach (var page in pages)
         {
             urls.Add($"https://www.bilibili.com/video/av{page.GetProperty("aid")}");
         }
         return urls;
+    }
+
+    private static async Task<JsonDocument> GetPageAsync(int pageNumber, int pageSize, string mid)
+    {
+        string json;
+        try
+        {
+            json = await GetSignedWebSourceAsync("https://api.bilibili.com/x/space/wbi/arc/search",
+                $"mid={mid}&order=pubdate&pn={pageNumber}&ps={pageSize}&tid=0&web_location=333.999",
+                $"https://space.bilibili.com/{mid}/upload/video");
+        }
+        catch (HttpRequestException e) when (e.StatusCode is System.Net.HttpStatusCode.PreconditionFailed or System.Net.HttpStatusCode.Forbidden)
+        {
+            throw new InvalidOperationException($"个人空间投稿列表被B站风控拦截(HTTP {(int)e.StatusCode})，请稍后重试或使用有效登录 Cookie；未导出不完整列表", e);
+        }
+        var document = JsonDocument.Parse(json);
+        int code = document.RootElement.GetProperty("code").GetInt32();
+        if (code != 0)
+        {
+            document.Dispose();
+            throw new InvalidOperationException(code is -352 or -412
+                ? $"个人空间投稿列表被B站风控拦截(code={code})，请稍后重试或在浏览器验证后使用有效 Cookie；未导出不完整列表"
+                : $"获取个人空间投稿列表失败(code={code})");
+        }
+        return document;
     }
 
     private static string GetValidFileName(string input, string re = ".", bool filterSlash = false)

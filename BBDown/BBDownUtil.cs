@@ -500,8 +500,7 @@ static partial class BBDownUtil
         var ponints = new List<ViewPoint>();
         try
         {
-            string api = $"https://api.bilibili.com/x/player/wbi/v2?cid={cid}&aid={aid}";
-            string json = await GetWebSourceAsync(api);
+            string json = await GetSignedWebSourceAsync("https://api.bilibili.com/x/player/wbi/v2", $"cid={cid}&aid={aid}");
             using var infoJson = JsonDocument.Parse(json);
             if (infoJson.RootElement.GetProperty("data").TryGetProperty("view_points", out JsonElement vPoint))
             {
@@ -591,13 +590,11 @@ static partial class BBDownUtil
     {
         try
         {
+            await Core.Util.BilibiliWebUtil.EnsureInitializedAsync();
             var api = "https://api.bilibili.com/x/web-interface/nav";
             var source = await GetWebSourceAsync(api);
             var json = JsonDocument.Parse(source).RootElement;
             var is_login = json.GetProperty("data").GetProperty("isLogin").GetBoolean();
-            var wbi_img = json.GetProperty("data").GetProperty("wbi_img");
-            Core.Config.WBI = GetMixinKey(RSubString(wbi_img.GetProperty("img_url").GetString()) + RSubString(wbi_img.GetProperty("sub_url").GetString()));
-            LogDebug("wbi: {0}", Core.Config.WBI);
             return is_login;
         }
         catch (Exception)

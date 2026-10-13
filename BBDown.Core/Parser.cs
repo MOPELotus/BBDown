@@ -13,7 +13,21 @@ public static partial class Parser
 {
     public static string WbiSign(string api)
     {
-        return $"{api}&w_rid=" + string.Concat(MD5.HashData(Encoding.UTF8.GetBytes(api + Config.WBI)).Select(i => i.ToString("x2")).ToArray());
+        var parameters = new SortedDictionary<string, string>(StringComparer.Ordinal);
+        foreach (string pair in api.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var parts = pair.Split('=', 2);
+            string name = Uri.UnescapeDataString(parts[0].Replace("+", " "));
+            if (name == "w_rid") continue;
+            string value = parts.Length == 2 ? Uri.UnescapeDataString(parts[1].Replace("+", " ")) : "";
+            if (!parameters.TryAdd(name, value)) throw new ArgumentException("WBI 参数重复: " + name);
+        }
+        parameters.TryAdd("wts", DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(System.Globalization.CultureInfo.InvariantCulture));
+        string query = string.Join("&", parameters.Select(pair =>
+            Uri.EscapeDataString(pair.Key) + "=" + Uri.EscapeDataString(
+                string.Concat(pair.Value.Where(c => !"!'()*".Contains(c))))));
+        if (Config.WBI.Length != 32) throw new InvalidOperationException("未获取到有效 WBI 密钥，请检查网络后重试");
+        return query + "&w_rid=" + Convert.ToHexStringLower(MD5.HashData(Encoding.UTF8.GetBytes(query + Config.WBI)));
     }
 
     private static async Task<string> GetPlayJsonAsync(string encoding, string aidOri, string aid, string cid, string epId, bool tvApi, bool intl, bool appApi, string qn = "0")
@@ -54,14 +68,16 @@ public static partial class Parser
             if (bangumi) apiBuilder.Append($"&module=bangumi&ep_id={epId}&session=");
             if (Config.COOKIE == "") apiBuilder.Append("&try_look=1");
             apiBuilder.Append($"&wts={GetTimeStamp(true)}");
-            api = prefix + (bangumi ? apiBuilder.ToString() : WbiSign(apiBuilder.ToString()));
+            api = prefix + apiBuilder;
         }
 
         //课程接口
         if (cheese) api = api.Replace("/pgc/", "/pugv/");
 
         //Console.WriteLine(api);
-        string webJson = await GetWebSourceAsync(api);
+        string webJson = !tvApi && !bangumi
+            ? await GetSignedWebSourceAsync(prefix.TrimEnd('?'), api[(api.IndexOf('?') + 1)..])
+            : await GetWebSourceAsync(api);
         //以下情况从网页源代码尝试解析
         if (webJson.Contains("\"大会员专享限制\""))
         {

@@ -45,4 +45,7 @@ public class VInfo
     /// 是否为互动视频
     /// </summary>
     public bool IsSteinGate { get; set; }
+
+    /// <summary>个人空间只导出投稿地址；非空时无需继续解析音视频。</summary>
+    public string? ExportedVideoListPath { get; set; }
 }

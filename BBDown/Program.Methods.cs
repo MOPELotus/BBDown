@@ -242,6 +242,8 @@ internal partial class Program
     /// <param name="myOption"></param>
     private static void LoadCredentials(MyOption myOption)
     {
+        if (string.IsNullOrEmpty(Config.COOKIE))
+            Config.COOKIE = BBDownLoginUtil.LoadSavedLogin()?.Cookie ?? "";
         if (string.IsNullOrEmpty(Config.COOKIE) && File.Exists(Path.Combine(APP_DIR, "BBDown.data")))
         {
             Log("加载本地cookie...");
