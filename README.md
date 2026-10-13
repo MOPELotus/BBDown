@@ -1,9 +1,12 @@
-[![img](https://img.shields.io/github/stars/nilaoda/BBDown?label=%E7%82%B9%E8%B5%9E)](https://github.com/nilaoda/BBDown)  [![img](https://img.shields.io/github/last-commit/nilaoda/BBDown?label=%E6%9C%80%E8%BF%91%E6%8F%90%E4%BA%A4)](https://github.com/nilaoda/BBDown)  [![img](https://img.shields.io/github/release/nilaoda/BBDown?label=%E6%9C%80%E6%96%B0%E7%89%88%E6%9C%AC)](https://github.com/nilaoda/BBDown/releases)  [![img](https://img.shields.io/github/license/nilaoda/BBDown?label=%E8%AE%B8%E5%8F%AF%E8%AF%81)](https://github.com/nilaoda/BBDown)  [![Build Latest](https://github.com/nilaoda/BBDown/actions/workflows/build_latest.yml/badge.svg)](https://github.com/nilaoda/BBDown/actions/workflows/build_latest.yml)
+[![img](https://img.shields.io/github/stars/MOPELotus/BBDown?label=%E7%82%B9%E8%B5%9E)](https://github.com/MOPELotus/BBDown)  [![img](https://img.shields.io/github/last-commit/MOPELotus/BBDown?label=%E6%9C%80%E8%BF%91%E6%8F%90%E4%BA%A4)](https://github.com/MOPELotus/BBDown)  [![img](https://img.shields.io/github/release/MOPELotus/BBDown?label=%E6%9C%80%E6%96%B0%E7%89%88%E6%9C%AC)](https://github.com/MOPELotus/BBDown/releases)  [![img](https://img.shields.io/github/license/MOPELotus/BBDown?label=%E8%AE%B8%E5%8F%AF%E8%AF%81)](https://github.com/MOPELotus/BBDown)  [![Build Latest](https://github.com/MOPELotus/BBDown/actions/workflows/build_latest.yml/badge.svg)](https://github.com/MOPELotus/BBDown/actions/workflows/build_latest.yml)
 
 > 本项目仅供个人学习、研究和非商业性用途。用户在使用本工具时，需自行确保遵守相关法律法规，特别是与版权相关的法律条款。开发者不对因使用本工具而产生的任何版权纠纷或法律责任承担责任。请用户在使用时谨慎，确保其行为合法合规，并仅在有合法授权的情况下使用相关内容。
 
 # BBDown
 一个命令行式哔哩哔哩下载器. Bilibili Downloader.
+
+本仓库是 [nilaoda/BBDown](https://github.com/nilaoda/BBDown) 的 Fork，原作者 **nilaoda**，Fork 作者与维护者 **MOPELotus**。
+当前版本 **1.6.4**。本 Fork 的下载、更新检查与问题反馈均使用 [MOPELotus/BBDown](https://github.com/MOPELotus/BBDown)。
 
 # 注意
 本软件混流时需要外部程序：
@@ -12,22 +15,19 @@
 * 杜比视界：ffmpeg5.0以上或新版mp4box.
 
 # 快速开始
-本软件已经以 [Dotnet Tool](https://www.nuget.org/packages/BBDown/) 形式发布  
+从 [本 Fork 的 Releases](https://github.com/MOPELotus/BBDown/releases) 下载对应平台的可执行文件，无需安装 .NET 运行时。
+混流仍需准备 ffmpeg 或 MP4Box。
 
-如果你本地有dotnet环境，使用如下命令即可安装使用
+如需从源码构建，安装 .NET 9 SDK 后执行：
+```sh
+dotnet publish BBDown -c Release -r linux-x64
 ```
-dotnet tool install --global BBDown
-```
-
-如果需要更新bbdown，使用如下命令
-```
-dotnet tool update --global BBDown
-```
+将 `linux-x64` 替换为目标平台的运行时标识。
 
 # 下载
-Release版本：https://github.com/nilaoda/BBDown/releases
+Release版本：https://github.com/MOPELotus/BBDown/releases
 
-自动构建的测试版本：https://github.com/nilaoda/BBDown/actions
+自动构建的测试版本：https://github.com/MOPELotus/BBDown/actions
 
 # 开始使用
 目前命令行参数支持情况

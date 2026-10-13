@@ -23,13 +23,15 @@ static partial class BBDownUtil
         try
         {
             var ver = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version!;
-            string nowVer = $"{ver.Major}.{ver.Minor}.{ver.Build}";
-            string redirectUrl = await GetWebLocationAsync("https://github.com/nilaoda/BBDown/releases/latest");
-            string latestVer = redirectUrl.Replace("https://github.com/nilaoda/BBDown/releases/tag/", "");
-            if (nowVer != latestVer && !latestVer.StartsWith("https"))
+            string redirectUrl = await GetWebLocationAsync(Core.ProjectInfo.ReleasesUrl + "/latest");
+            string tagPrefix = Core.ProjectInfo.ReleasesUrl + "/tag/";
+            if (!redirectUrl.StartsWith(tagPrefix, StringComparison.Ordinal)) return;
+            string latestVer = redirectUrl[tagPrefix.Length..];
+            if (Core.ProjectInfo.TryGetNewerVersion(latestVer, ver, out _))
             {
                 Console.Title = $"发现新版本：{latestVer}";
                 LogColor($"发现新版本：{latestVer}");
+                LogColor("下载地址：" + Core.ProjectInfo.ReleasesUrl + "/tag/" + latestVer);
             }
         }
         catch (Exception)

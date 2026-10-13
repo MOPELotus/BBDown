@@ -1,6 +1,9 @@
 name: Build Latest
 
-on: [push,workflow_dispatch]
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
 
 env:
   DOTNET_SDK_VERSION: "9.0.306"
@@ -35,6 +38,17 @@ jobs:
         run: |
           dotnet publish BBDown -r win-x64 -c Release -o artifact
           dotnet publish BBDown -r win-arm64 -c Release -o artifact-arm64
+
+      - name: Verify version and Fork attribution [win-x64]
+        shell: pwsh
+        run: |
+          $expected = ([xml](Get-Content BBDown/BBDown.csproj)).Project.PropertyGroup.Version
+          $actual = & ./artifact/BBDown.exe --version
+          if ($LASTEXITCODE -ne 0 -or $actual.Trim() -ne $expected) { throw "Executable version mismatch: $actual" }
+          $helpText = & ./artifact/BBDown.exe --help
+          if ($LASTEXITCODE -ne 0 -or ($helpText -join "`n") -notmatch 'MOPELotus') { throw "Missing Fork attribution" }
+          dotnet run --project BBDown.Tests/BBDown.Tests.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw "Regression checks failed" }
 
       - name: Package [win]
         run: |
@@ -110,6 +124,12 @@ jobs:
               dotnet publish BBDown -r linux-arm64 -c Release -p:StripSymbols=true -p:CppCompilerAndLinker=clang-9 -p:SysRoot=/crossrootfs/arm64 -o /workspace/artifact-arm64
             "
 
+      - name: Verify version and Fork attribution [linux-x64]
+        run: |
+          expected=$(sed -n 's/.*<Version>\(.*\)<\/Version>.*/\1/p' BBDown/BBDown.csproj)
+          test "$(./artifact/BBDown --version)" = "$expected"
+          ./artifact/BBDown --help | grep MOPELotus > /dev/null
+
       - name: Package [linux]
         run: |
           cd artifact
@@ -145,6 +165,16 @@ jobs:
         run: |
           dotnet publish BBDown -r osx-x64 -c Release -o artifact
           dotnet publish BBDown -r osx-arm64 -c Release -o artifact-arm64
+
+      - name: Verify version and Fork attribution [osx host architecture]
+        run: |
+          expected=$(sed -n 's/.*<Version>\(.*\)<\/Version>.*/\1/p' BBDown/BBDown.csproj)
+          case "$(uname -m)" in
+            arm64) executable=./artifact-arm64/BBDown ;;
+            *) executable=./artifact/BBDown ;;
+          esac
+          test "$($executable --version)" = "$expected"
+          $executable --help | grep MOPELotus > /dev/null
 
       - name: Package [osx]
         run: |

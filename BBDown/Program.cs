@@ -63,6 +63,12 @@ partial class Program
 
     public static async Task<int> Main(params string[] args)
     {
+        if (args.Length == 1 && args[0] == "--version")
+        {
+            var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version!;
+            Console.WriteLine($"{version.Major}.{version.Minor}.{version.Build}");
+            return 0;
+        }
         Console.CancelKeyPress += Console_CancelKeyPress;
         ServicePointManager.DefaultConnectionLimit = 2048;
 
@@ -84,7 +90,7 @@ partial class Program
             { serverUrlOpt };
         runAsServerCommand.SetHandler(StartServer, serverUrlOpt);
         rootCommand.AddCommand(runAsServerCommand);
-        rootCommand.Description = "BBDown是一个免费且便捷高效的哔哩哔哩下载/解析软件.";
+        rootCommand.Description = $"BBDown是一个免费且便捷高效的哔哩哔哩下载/解析软件。原作者 {ProjectInfo.UpstreamAuthor}，Fork 作者 {ProjectInfo.ForkAuthor}。";
         rootCommand.TreatUnmatchedTokensAsErrors = true;
 
         //WEB登录
@@ -118,7 +124,7 @@ partial class Program
             return 1;
         }
 
-        if (commandLineResult.CommandResult.Command.Name.ToLower() != Path.GetFileNameWithoutExtension(Environment.ProcessPath)!.ToLower() && Path.GetFileNameWithoutExtension(Environment.ProcessPath)!.ToLower() != "dotnet")
+        if (!ReferenceEquals(commandLineResult.CommandResult.Command, rootCommand))
         {
             // 服务器模式需要完整的arg列表
             if (commandLineResult.CommandResult.Command.Name.ToLower() == "serve")
@@ -150,9 +156,9 @@ partial class Program
         Console.BackgroundColor = ConsoleColor.DarkBlue;
         Console.ForegroundColor = ConsoleColor.White;
         var ver = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version!;
-        Console.Write($"BBDown version {ver.Major}.{ver.Minor}.{ver.Build}, Bilibili Downloader.\r\n");
+        Console.Write($"BBDown version {ver.Major}.{ver.Minor}.{ver.Build}, Bilibili Downloader.\r\n原作者: {ProjectInfo.UpstreamAuthor}; Fork 作者: {ProjectInfo.ForkAuthor}\r\n");
         Console.ResetColor();
-        Console.Write("遇到问题请首先到以下地址查阅有无相关信息：\r\nhttps://github.com/nilaoda/BBDown/issues\r\n");
+        Console.Write($"项目主页: {ProjectInfo.RepositoryUrl}\r\n问题反馈: {ProjectInfo.IssuesUrl}\r\n");
         Console.WriteLine();
 
         //处理配置文件

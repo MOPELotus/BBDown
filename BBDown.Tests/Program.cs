@@ -70,6 +70,13 @@ using (var http = new HttpClient(noRefresh))
         "Keep current credentials when refresh is unnecessary");
 Console.WriteLine("PASS: WBI vectors, RSA OAEP, credential rotation, identity validation, persistence failure and interrupted confirmation recovery");
 
+Check(ProjectInfo.RepositoryUrl == "https://github.com/MOPELotus/BBDown", "Fork repository");
+Check(ProjectInfo.TryGetNewerVersion("v1.6.5", new Version(1, 6, 4, 0), out _), "Newer release");
+Check(!ProjectInfo.TryGetNewerVersion("1.6.4", new Version(1, 6, 4, 0), out _), "Same release");
+Check(!ProjectInfo.TryGetNewerVersion("1.6.3", new Version(1, 6, 4, 0), out _), "Older release");
+Check(!ProjectInfo.TryGetNewerVersion("not-a-version", new Version(1, 6, 4, 0), out _), "Non-version tag");
+Console.WriteLine("PASS: Fork project identity and update version comparison");
+
 sealed class RefreshHandler(List<BilibiliWebCredential> saves) : HttpMessageHandler
 {
     public string Failure { get; init; } = "";
